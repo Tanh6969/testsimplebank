@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"log"
 
-	"github.com/simplebank/db/util"
+	"github.com/simplebank/util"
 	//"github.com/go-delve/delve/pkg/config"
 	_ "github.com/lib/pq"
 	"github.com/simplebank/api"
