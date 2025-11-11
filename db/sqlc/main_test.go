@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/simplebank/db/util"
+	"github.com/simplebank/util"
 
 	_ "github.com/lib/pq"
 )
@@ -14,7 +14,7 @@ import (
 // var testQueries *Queries
 var testDB *sql.DB
 
-var testStore *Store
+var testStore Store
 
 func TestMain(m *testing.M) {
 	config, err := util.LoadConfig("../..")
