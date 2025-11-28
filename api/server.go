@@ -2,7 +2,9 @@ package api
 
 import (
 	"fmt"
+	"time" // Cần thiết cho cấu hình CORS MaxAge
 
+	"github.com/gin-contrib/cors" // IMPORT THƯ VIỆN CORS
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
@@ -43,6 +45,19 @@ func (server *Server) setupRouter() {
 
 	router := gin.Default()
 
+	// 🌟 CẤU HÌNH VÀ ÁP DỤNG MIDDLEWARE CORS
+	// Giải pháp 1B: Sử dụng cấu hình Default và chỉ định Origin của Frontend
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"http://localhost:3000"} // Cho phép frontend truy cập
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Authorization", "Accept"}
+	config.AllowCredentials = true
+	config.MaxAge = 12 * time.Hour
+
+	router.Use(cors.New(config))
+	// Dòng này tự động xử lý request OPTIONS (trả về 200 OK) cho các route được định nghĩa bên dưới.
+	// ----------------------------------------------------
+
 	router.POST("/users", server.createUser)
 	router.POST("/users/login", server.loginUser)
 
@@ -59,7 +74,6 @@ func (server *Server) setupRouter() {
 // Start runs the HTTP server on a specific address
 func (server *Server) Start(address string) error {
 	return server.router.Run(address)
-
 }
 
 func errorResponse(err error) gin.H {
