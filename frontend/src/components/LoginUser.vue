@@ -1,30 +1,32 @@
 <script setup lang="ts">
-import InputGroup from 'primevue/inputgroup'
-import InputGroupAddon from 'primevue/inputgroupaddon'
-import FloatLabel from 'primevue/floatlabel'
-import InputText from 'primevue/inputtext'
-import Button from 'primevue/button'
-import { useToast } from 'primevue/usetoast'
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useToast } from 'primevue/usetoast'
 import axios from 'axios'
-import type { User } from '@/types/user'
-import store from '@/store'
+import store from '@/store' // Đảm bảo đường dẫn tới store là chính xác
 
-interface LoginResponse {
-  user: User
-  access_token: string
-  refresh_token: string
+// Giả định cấu trúc type User và LoginResponse nằm trong '@/types/user'
+interface User {
+  full_name: string;
+  username: string;
 }
+interface LoginResponse {
+  user: User;
+  access_token: string;
+  refresh_token: string;
+}
+
+const router = useRouter()
+const toast = useToast()
 
 const username = ref<string>('')
 const password = ref<string>('')
 const errorMessage = ref<string>('')
-const toast = useToast()
 
 const handleLogin = async () => {
   try {
     const response = await axios.post<LoginResponse>(
-      'http://localhost:8080/v1/login_user',
+      'http://localhost:8080/users/login',
       {
         username: username.value,
         password: password.value
@@ -32,23 +34,32 @@ const handleLogin = async () => {
       {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'none'
+          Authorization: 'none' 
         }
       }
     )
 
+    // 1. Lưu User và Token vào Store và localStorage
     store.setUser(response.data.user, response.data.access_token, response.data.refresh_token)
+    
+    // 2. Hiển thị thông báo thành công
     toast.add({
       severity: 'success',
-      summary: `Hello, ${response.data.user.full_name}!`,
+      summary: `Hello, ${response.data.user.full_name || response.data.user.username}!`,
       detail: `You have successfully logged in.`,
       life: 3000
     })
+
+    // 3. KHẮC PHỤC: Đặt lệnh chuyển hướng vào setTimeout để tránh xung đột với Toast
+    setTimeout(() => {
+        router.push('/profile'); // Chuyển đến trang Profile (route con đầu tiên)
+    }, 150);
+    
   } catch (error: any) {
     if (error.response && error.response.status === 404) {
-      errorMessage.value = error.response.data.message
+      errorMessage.value = 'Tên đăng nhập hoặc mật khẩu không đúng.'
     } else {
-      errorMessage.value = 'An error occurred. Please try again later'
+      errorMessage.value = 'An error occurred. Please try again later.'
     }
 
     toast.add({
@@ -62,25 +73,98 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <div class="flex flex-column row-gap-5">
-    <InputGroup>
-      <InputGroupAddon>
-        <i class="pi pi-user"></i>
-      </InputGroupAddon>
-      <FloatLabel>
-        <InputText id="username" v-model="username" />
-        <label for="username">Username</label>
-      </FloatLabel>
-    </InputGroup>
-    <InputGroup>
-      <InputGroupAddon>
-        <i class="pi pi-lock"></i>
-      </InputGroupAddon>
-      <FloatLabel>
-        <InputText id="password" type="password" v-model="password" />
-        <label for="password">Password</label>
-      </FloatLabel>
-    </InputGroup>
-    <Button label="Login" @click="handleLogin" />
-  </div>
+  <form @submit.prevent="handleLogin" class="login-form">
+    
+    <div class="input-group">
+      <i class="fas fa-user icon"></i>
+      <input 
+        v-model="username" 
+        type="text" 
+        placeholder="Username" 
+        required
+        class="input-field"
+      />
+    </div>
+
+    <div class="input-group">
+      <i class="fas fa-lock icon"></i>
+      <input 
+        v-model="password" 
+        type="password" 
+        placeholder="Password" 
+        required
+        class="input-field"
+      />
+    </div>
+
+    <button type="submit" class="login-button">
+      <i class="fas fa-sign-in-alt"></i> Login
+    </button>
+  </form>
 </template>
+
+<style scoped>
+/* -------------------------------------- */
+/* CSS LÀM ĐẸP (Giúp form hiển thị ổn định) */
+/* -------------------------------------- */
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.icon {
+  position: absolute;
+  left: 15px;
+  color: #00796b;
+  font-size: 1.1em;
+  z-index: 10;
+}
+
+.input-field {
+  width: 100%;
+  padding: 15px 15px 15px 45px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1em;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: #00796b;
+  box-shadow: 0 0 0 3px rgba(0, 121, 107, 0.2);
+}
+
+.login-button {
+  width: 100%;
+  padding: 15px;
+  margin-top: 10px;
+  background-color: #00796b;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.2s;
+  letter-spacing: 1px;
+}
+
+.login-button i {
+    margin-right: 8px;
+}
+
+.login-button:hover {
+  background-color: #004d40;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+</style>
