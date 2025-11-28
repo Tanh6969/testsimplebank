@@ -1,0 +1,7 @@
+{
+  "devDependencies": {
+    "@tsconfig/node20": "^20.1.8",
+    "@vue/tsconfig": "^0.8.1",
+    "typescript": "^5.9.3"
+  }
+}
