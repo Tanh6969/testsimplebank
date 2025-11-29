@@ -1,79 +1,83 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
-import LoginView from '../views/LoginView.vue'
-import ProfileView from '../views/ProfileView.vue'
-import AccountView from '../views/AccountView.vue'
-import TransferView from '../views/TransferView.vue'
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import store from '../store' // Import store để kiểm tra trạng thái đăng nhập
 
+// Khai báo các Route
+const routes: Array<RouteRecordRaw> = [
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('../views/LoginView.vue'),
+    meta: { requiresAuth: false, public: true } 
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('../views/RegisterView.vue'), // Bạn cần đảm bảo file này tồn tại
+    meta: { requiresAuth: false, public: true } 
+  },
+  {
+    // 🌟 ROUTE GỐC CHÍNH (LAYOUT) 🌟
+    path: '/',
+    name: 'HomeLayout',
+    component: () => import('../views/HomeView.vue'), 
+    meta: { requiresAuth: true },
+    children: [
+        {
+            path: '', 
+            name: 'HomeRedirect',
+            redirect: '/profile' 
+        },
+        {
+            path: 'profile', // Route: /profile
+            name: 'Profile',
+            component: () => import('../views/ProfileView.vue'),
+        },
+        {
+            path: 'accounts', // Route: /accounts (List)
+            name: 'Accounts',
+            component: () => import('../views/AccountView.vue'),
+        },
+        // 🌟 KHẮC PHỤC: THÊM ROUTE TẠO TÀI KHOẢN 🌟
+        {
+            path: 'accounts/create', // Route: /accounts/create
+            name: 'AccountCreate',
+            component: () => import('../views/AccountCreateView.vue'),
+        },
+        {
+            path: 'transfers', // Route: /transfers
+            name: 'Transfers',
+            component: () => import('../views/TransferView.vue'),
+        },
+    ]
+  },
+  // THÊM ROUTE 404 (Nếu không khớp bất kỳ route nào, chuyển về /profile)
+  {
+    path: '/:pathMatch(.*)*', 
+    redirect: '/profile' 
+  }
+]
+
+// 2. Tạo Router
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-      path: '/login',
-      name: 'login',
-      component: LoginView 
-    },
-    // 🌟 THÊM ROUTE ĐĂNG KÝ (GIẢI QUYẾT CẢNH BÁO TRƯỚC ĐÓ)
-    // Bạn cần tạo file RegisterView.vue
-    {
-        path: '/register',
-        name: 'register',
-        component: () => import('../views/RegisterView.vue') // Giả định
-    },
-    {
-      path: '/',
-      name: 'home',
-      component: HomeView, 
-      meta: { requiresAuth: true },
-      children: [
-        {
-          path: '', 
-          name: 'profile-default',
-          redirect: '/profile' 
-        },
-        {
-          path: 'profile',
-          name: 'profile',
-          component: ProfileView,
-        },
-        {
-          path: 'accounts',
-          name: 'accounts',
-          component: AccountView,
-        },
-        {
-          path: 'transfers', 
-          name: 'transfers',
-          component: TransferView,
-        },
-      ]
-    }
-  ]
+  history: createWebHistory(),
+  routes
 })
 
-// 🌟 KHẮC PHỤC: Logic Router Guard ĐẦY ĐỦ VÀ CHÍNH XÁC
+// 3. Navigation Guard (Giữ nguyên logic kiểm tra đăng nhập)
 router.beforeEach((to, from, next) => {
-  // Lấy thông tin bảo mật cho route sắp đến
+  const loggedIn = store.state.user 
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-  
-  // 🌟 LƯU Ý QUAN TRỌNG: LUÔN KIỂM TRA TRỰC TIẾP TỪ LOCALSTORAGE
-  const isAuthenticated = localStorage.getItem('access_token'); 
+  const isPublic = to.meta.public
 
-  // 1. Nếu route cần bảo vệ VÀ chưa có token
-  if (requiresAuth && !isAuthenticated) {
-    next('/login');
-  } 
-  
-  // 2. Nếu ĐÃ có token nhưng cố truy cập /login
-  else if (to.path === '/login' && isAuthenticated) {
-    // Chuyển về trang Dashboard chính (/profile)
-    next('/profile');
-  } 
-  
-  // 3. Cho phép đi tiếp (Đã đăng nhập và truy cập trang bảo vệ HOẶC truy cập trang công khai)
-  else {
-    next();
+  if (requiresAuth && !loggedIn) {
+    return next('/login')
   }
-});
+
+  if (loggedIn && isPublic) {
+    return next('/profile')
+  }
+
+  next()
+})
 
 export default router

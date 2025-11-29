@@ -1,121 +1,244 @@
-<template>
-  <div class="container">
-    <h2>💰 Danh sách Tài khoản</h2>
-    <p class="loading-state" v-if="isLoading">Đang tải dữ liệu tài khoản...</p>
-    
-    <div v-else-if="accounts.length === 0">
-      <p>Bạn chưa có tài khoản nào. Vui lòng tạo tài khoản mới.</p>
-    </div>
-    
-    <ul v-else class="account-list">
-      <li v-for="account in accounts" :key="account.id" class="account-item">
-        <h3>{{ account.owner }} - #{{ account.id }}</h3>
-        <p>Số dư: <strong>{{ formatCurrency(account.balance, account.currency) }}</strong></p>
-        <p>Tiền tệ: {{ account.currency }}</p>
-      </li>
-    </ul>
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import axios from 'axios';
+import store from '../store';
+import { useRouter } from 'vue-router'; 
 
-    <button @click="fetchAccounts" class="refresh-button">Tải lại</button>
-  </div>
-</template>
-
-<script lang="ts">
-import { defineComponent, ref, onMounted } from 'vue';
-import axios from 'axios'; // Giả sử bạn đang dùng axios
-
+// Định nghĩa cấu trúc dữ liệu tài khoản
 interface Account {
   id: number;
   owner: string;
   balance: number;
   currency: string;
+  created_at: string;
 }
 
-export default defineComponent({
-  name: 'AccountView',
-  setup() {
-    const accounts = ref<Account[]>([]);
-    const isLoading = ref(true);
-    const error = ref<string | null>(null);
+const router = useRouter();
+const accounts = ref<Account[]>([]);
+const isLoading = ref(true);
+const error = ref<string | null>(null);
 
-    const fetchAccounts = async () => {
-      isLoading.value = true;
-      error.value = null;
-      try {
-        // Lấy token đã lưu sau khi đăng nhập thành công
-        const token = localStorage.getItem('access_token'); 
-        
-        const response = await axios.get('http://localhost:8080/accounts', {
-          headers: {
-            // 🌟 CỰC KỲ QUAN TRỌNG: Gửi Bearer Token để xác thực
-            Authorization: `Bearer ${token}`, 
-          },
-        });
-        
-        accounts.value = response.data; // Giả sử API trả về mảng tài khoản
-      } catch (err) {
-        // Xử lý lỗi (ví dụ: token hết hạn, server lỗi 500)
-        error.value = 'Không thể tải tài khoản. Vui lòng kiểm tra đăng nhập.';
-        console.error(err);
-      } finally {
-        isLoading.value = false;
+const defaultPageID = 1;
+const defaultPageSize = 10;
+
+const fetchAccounts = async () => {
+  isLoading.value = true;
+  error.value = null;
+  const token = store.state.accessToken; 
+
+  if (!token) {
+    error.value = 'Không tìm thấy token. Vui lòng đăng nhập lại.';
+    isLoading.value = false;
+    return;
+  }
+
+  try {
+    const response = await axios.get('http://localhost:8080/accounts', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      params: { 
+        page_id: defaultPageID,
+        page_size: defaultPageSize
       }
-    };
+    });
+
+    accounts.value = response.data;
     
-    // Hàm định dạng tiền tệ đơn giản
-    const formatCurrency = (amount: number, currency: string) => {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency,
-      }).format(amount);
-    };
+  } catch (err: any) {
+    console.error("Lỗi tải tài khoản:", err);
+    if (err.response && err.response.status === 401) {
+        error.value = 'Phiên làm việc hết hạn. Vui lòng đăng nhập lại.';
+    } else if (err.response && err.response.status === 400) {
+        error.value = 'Lỗi yêu cầu: Frontend không gửi đủ tham số phân trang.';
+    } else {
+        error.value = 'Lỗi tải dữ liệu tài khoản. Vui lòng kiểm tra Server.';
+    }
+  } finally {
+    isLoading.value = false;
+  }
+};
 
-    // Tải dữ liệu khi component được mount
-    onMounted(fetchAccounts);
+const formatCurrency = (amount: number, currency: string) => {
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currency,
+            minimumFractionDigits: 2,
+        }).format(amount);
+    } catch (e) {
+        return `${amount} ${currency}`;
+    }
+};
 
-    return {
-      accounts,
-      isLoading,
-      error,
-      fetchAccounts,
-      formatCurrency,
-    };
-  },
-});
+const goToCreateAccount = () => {
+    router.push('/accounts/create'); // Chuyển hướng đến Form Tạo tài khoản
+};
+
+onMounted(fetchAccounts);
 </script>
 
+<template>
+  <div class="account-container">
+    <div class="account-card">
+      <h2 class="title"><i class="fas fa-wallet icon"></i> Danh sách Tài khoản</h2>
+      <hr>
+
+      <div v-if="!isLoading && !error" class="action-bar">
+          <button @click="goToCreateAccount" class="btn-primary create-btn">
+              <i class="fas fa-plus-circle"></i> Thêm Tài khoản Mới
+          </button>
+      </div>
+
+      <div v-if="isLoading" class="loading-state">
+        <i class="fas fa-spinner fa-spin loading-spinner"></i>
+        <p>Đang tải dữ liệu tài khoản...</p>
+      </div>
+
+      <div v-else-if="error" class="error-state">
+        <p class="error-message">❌ {{ error }}</p>
+        <button @click="fetchAccounts" class="btn-primary btn-retry">Thử lại</button>
+      </div>
+
+      <div v-else-if="accounts.length === 0" class="empty-state">
+        <p>Bạn chưa có tài khoản nào. Vui lòng tạo tài khoản mới.</p>
+        <button @click="goToCreateAccount" class="btn-primary">Tạo tài khoản mới</button> 
+        <button @click="fetchAccounts" class="btn-secondary">Tải lại</button>
+      </div>
+
+      <div v-else class="account-list">
+        <div v-for="account in accounts" :key="account.id" class="account-item">
+          <div class="details">
+            <p class="account-number">Số tài khoản: **{{ account.id }}**</p>
+            <p class="owner-name">Chủ sở hữu: **{{ account.owner }}**</p>
+            <p class="created-date">Mở tài khoản: {{ new Date(account.created_at).toLocaleDateString() }}</p>
+          </div>
+          <div class="balance-info">
+            <p class="balance-amount">{{ formatCurrency(account.balance, account.currency) }}</p>
+            <p class="currency-type">{{ account.currency }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
 <style scoped>
-.container {
-  max-width: 600px;
-  margin: 50px auto;
-  padding: 20px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+/* -------------------------------------- */
+/* CSS THIẾT KẾ ĐÃ SỬA */
+/* -------------------------------------- */
+.account-container {
+    padding-top: 30px;
+    display: flex;
+    justify-content: center;
 }
-h2 {
-  color: #00796b;
-  border-bottom: 2px solid #e0e0e0;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
+.account-card {
+    width: 800px;
+    max-width: 90%;
+    padding: 30px;
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
+.title {
+    color: #00796b;
+    font-size: 1.8em;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+.icon {
+    margin-right: 10px;
+}
+hr {
+    border: 0;
+    border-top: 1px solid #eee;
+    margin-bottom: 25px;
+}
+
+/* ACTION BAR */
+.action-bar {
+    display: flex;
+    justify-content: flex-end; /* Đẩy nút sang phải */
+    margin-bottom: 20px;
+}
+.create-btn {
+    padding: 10px 20px;
+    font-size: 1em;
+}
+
+
+/* LIST STYLES */
 .account-list {
-  list-style: none;
-  padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
 }
 .account-item {
-  border: 1px solid #ccc;
-  padding: 15px;
-  margin-bottom: 10px;
-  border-radius: 6px;
-  background: #f9f9f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    transition: box-shadow 0.2s;
 }
-.refresh-button {
-  margin-top: 20px;
-  padding: 10px 15px;
-  background-color: #00796b;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+.account-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.details p {
+    margin: 4px 0;
+    font-size: 0.9em;
+}
+.account-number {
+    font-weight: bold;
+    color: #00796b; /* Highlight số tài khoản */
+    font-size: 1.1em;
+}
+.owner-name {
+    font-weight: normal;
+}
+
+
+/* BALANCE */
+.balance-info {
+    text-align: right;
+}
+.balance-amount {
+    font-size: 1.6em;
+    font-weight: bold;
+    color: #004d40;
+    margin-bottom: 0;
+}
+.currency-type {
+    font-size: 0.8em;
+    color: #777;
+}
+
+/* LOADING/ERROR */
+.loading-state, .empty-state {
+    text-align: center;
+    padding: 30px;
+}
+
+/* BUTTONS */
+.btn-primary, .btn-secondary, .btn-retry {
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s;
+    margin-right: 10px;
+    border: none;
+}
+.btn-primary {
+    background-color: #00796b;
+    color: white;
+}
+.btn-secondary, .btn-retry {
+    background-color: #f0f0f0;
+    color: #333;
+    border: 1px solid #ccc;
 }
 </style>

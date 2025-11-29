@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { useRouter, RouterLink } from 'vue-router'
-import store from '../store' // Giả định store vẫn ở ../store
+import { ref } from 'vue'; // 👈 Cần thiết cho tính năng thông báo
+import axios from 'axios'; // 👈 Cần thiết để fetch thông báo
+import store from '../store' 
 import { useToast } from 'primevue/usetoast'
-import type { User } from '@/types/user' // Giả định type User
+import type { User } from '@/types/user' 
 
 const router = useRouter()
 const toast = useToast()
-const user = store.state.user // Lấy user hiện tại từ store
+// Khởi tạo user bằng computed hoặc ref để đảm bảo phản ứng khi store thay đổi
+const user = store.state.user 
+
+// 🌟 THÊM STATE QUẢN LÝ THÔNG BÁO 🌟
+const showNotifications = ref(false);
+const notifications = ref<any[]>([]); 
+const unreadCount = ref(0); 
+// ------------------------------------
 
 const onLogout = () => {
   if (user) {
@@ -21,6 +30,41 @@ const onLogout = () => {
   store.clearUser()
   router.push('/login')
 }
+
+// 🌟 LOGIC THÔNG BÁO 🌟
+const toggleNotifications = () => {
+    showNotifications.value = !showNotifications.value;
+    if (showNotifications.value && notifications.value.length === 0) {
+        fetchNotifications();
+    }
+};
+
+const fetchNotifications = async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    try {
+        // Gọi API lấy các giao dịch (Ví dụ: /transfers)
+        const response = await axios.get('http://localhost:8080/transfers', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        // Lấy 3 giao dịch đầu tiên và tạo thông báo
+        notifications.value = response.data.slice(0, 3).map((t: any) => ({
+            id: t.id,
+            // Giả lập thông báo dựa trên transfer
+            message: t.from_account_id === user?.id 
+                     ? `Chuyển ${t.amount} ${t.currency} tới TK #${t.to_account_id}`
+                     : `Nhận ${t.amount} ${t.currency} từ TK #${t.from_account_id}`,
+            is_new: true // Giả lập trạng thái mới
+        }));
+        unreadCount.value = notifications.value.filter(n => n.is_new).length; 
+        
+    } catch (error) {
+        console.error("Lỗi tải thông báo:", error);
+    }
+};
+// ------------------------------------
 </script>
 
 <template>
@@ -43,6 +87,23 @@ const onLogout = () => {
       </nav>
 
       <div class="user-info">
+        
+        <div class="notification-area">
+          <button @click="toggleNotifications" class="notification-btn">
+            <i class="fas fa-bell"></i>
+            <span v-if="unreadCount > 0" class="badge">{{ unreadCount }}</span>
+          </button>
+          
+          <div v-if="showNotifications" class="notification-dropdown">
+            <div v-if="notifications.length === 0" class="empty-state">
+              Không có thông báo mới.
+            </div>
+            <div v-for="notif in notifications" :key="notif.id" class="notification-item">
+              {{ notif.message }}
+            </div>
+            <div class="dropdown-footer">Xem tất cả</div>
+          </div>
+        </div>
         <span v-if="user" class="username-display">Xin chào, {{ user.full_name || user.username }}</span>
         <button @click="onLogout" class="logout-btn">
           <i class="fas fa-sign-out-alt"></i> Đăng xuất
@@ -54,7 +115,7 @@ const onLogout = () => {
 
 <style scoped>
 .navbar-header {
-  background-color: #00796b; /* Màu xanh thương hiệu */
+  background-color: #00796b; 
   padding: 10px 0;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
@@ -84,7 +145,7 @@ const onLogout = () => {
 }
 
 .nav-item {
-  color: #c8e6c9; /* Màu sáng */
+  color: #c8e6c9;
   text-decoration: none;
   font-weight: 500;
   padding: 8px 10px;
@@ -93,7 +154,7 @@ const onLogout = () => {
 }
 
 .nav-item:hover, .nav-item.router-link-active {
-  background-color: #004d40; /* Màu đậm hơn khi hover/active */
+  background-color: #004d40;
   color: white;
 }
 .nav-item i {
@@ -113,7 +174,7 @@ const onLogout = () => {
 }
 
 .logout-btn {
-  background-color: #e57373; /* Màu đỏ nhẹ */
+  background-color: #e57373; 
   color: white;
   border: none;
   padding: 8px 15px;
@@ -125,5 +186,80 @@ const onLogout = () => {
 
 .logout-btn:hover {
   background-color: #d32f2f;
+}
+
+/* -------------------------------------- */
+/* CSS MỚI CHO THÔNG BÁO */
+/* -------------------------------------- */
+
+.notification-area {
+    position: relative;
+    /* Đẩy chuông gần user info */
+}
+
+.notification-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 5px;
+    position: relative;
+    transition: color 0.2s;
+}
+.notification-btn:hover {
+    color: #e0e0e0;
+}
+
+.badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #ff5722; 
+    color: white;
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 0.7em;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.notification-dropdown {
+    position: absolute;
+    top: 45px; /* Điều chỉnh vị trí thả xuống */
+    right: 0;
+    width: 300px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    overflow: hidden;
+    text-align: left;
+}
+
+.notification-item {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    color: #333;
+    font-size: 0.95em;
+}
+.notification-item:last-child {
+    border-bottom: none;
+}
+
+.empty-state {
+    padding: 15px;
+    color: #999;
+    text-align: center;
+}
+
+.dropdown-footer {
+    padding: 10px 15px;
+    background-color: #f0f0f0;
+    text-align: center;
+    font-size: 0.85em;
+    color: #00796b;
+    cursor: pointer;
+    font-weight: 600;
 }
 </style>
