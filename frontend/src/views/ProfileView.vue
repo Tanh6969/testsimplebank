@@ -1,3 +1,29 @@
+<script setup lang="ts">
+import { computed } from 'vue';
+import { useRouter } from 'vue-router';
+import store from '../store'; // Đảm bảo đường dẫn chính xác
+
+const router = useRouter();
+
+// 🌟 LẤY DỮ LIỆU TỪ STORE BẰNG COMPUTED 🌟
+const user = computed(() => {
+    const storedUser = store.state.user;
+    if (storedUser) {
+        return {
+            fullName: storedUser.full_name || storedUser.username || 'Tên người dùng',
+            email: storedUser.email || 'Email chưa cập nhật'
+        };
+    }
+    // Trả về giá trị mặc định nếu Store chưa có dữ liệu
+    return { fullName: 'Không có dữ liệu', email: 'N/A' };
+});
+
+const logout = () => {
+    store.clearUser();
+    router.push('/login');
+};
+</script>
+
 <template>
   <div class="profile-page">
     <div class="profile-card">
@@ -7,7 +33,7 @@
         <h3>User Profile</h3>
         <div class="info-item">
           <i class="fas fa-user"></i>
-          <span class="info-text">{{ user.fullName }}</span>
+          <span class="info-text">{{ user.fullName }}</span> 
         </div>
         <div class="info-item">
           <i class="fas fa-envelope"></i>
@@ -37,72 +63,14 @@
   </div>
 </template>
 
-<script lang="ts">
-import { defineComponent, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-// Giả định bạn đã có một hàm hoặc service để giải mã token để lấy thông tin user
-// Nếu không có, bạn cần thay thế logic này bằng cách lấy thông tin user từ store/state
-import { jwtDecode } from 'jwt-decode';
-
-interface User {
-  username: string;
-  fullName: string;
-  email: string;
-}
-
-export default defineComponent({
-  name: 'ProfileView',
-  setup() {
-    const router = useRouter();
-    const user = reactive<User>({
-      username: '',
-      fullName: 'Đang tải...',
-      email: '',
-    });
-
-    onMounted(() => {
-      // 🌟 Lấy thông tin user từ Token (Giả định token là JWT)
-      const token = localStorage.getItem('access_token');
-      if (token) {
-        try {
-          const decoded: any = jwtDecode(token);
-          // Thông tin user sau khi đăng nhập thành công nằm trong payload của JWT
-          // Cấu trúc payload có thể khác nhau tùy thuộc vào backend của bạn.
-          user.username = decoded.username || 'N/A';
-          user.fullName = decoded.full_name || decoded.username || 'Tên người dùng';
-          user.email = decoded.email || 'N/A';
-        } catch (e) {
-          console.error("Lỗi giải mã token:", e);
-          // Nếu token lỗi, chuyển về trang login
-          router.push('/login');
-        }
-      } else {
-        // Nếu không có token, chuyển về trang login (cũng được xử lý bởi navigation guard)
-        router.push('/login');
-      }
-    });
-
-    const logout = () => {
-      // Xóa token và chuyển hướng về trang đăng nhập
-      localStorage.removeItem('access_token');
-      // Tùy chọn: Xóa thông tin user khỏi store/state nếu có
-      router.push('/login');
-    };
-
-    return {
-      user,
-      logout,
-    };
-  },
-});
-</script>
-
 <style scoped>
+/* -------------------------------------- */
+/* DÁN CÁC STYLE CSS CỦA PROFILEVIEW VÀO ĐÂY */
+/* -------------------------------------- */
 .profile-page {
+  padding-top: 30px; 
   display: flex;
   justify-content: center;
-  align-items: center;
-  min-height: 80vh;
 }
 .profile-card {
   width: 400px;
@@ -153,7 +121,7 @@ export default defineComponent({
 .nav-link {
   text-decoration: none;
   padding: 12px 15px;
-  background-color: #f0fff0; /* Light green background */
+  background-color: #f0fff0;
   border: 1px solid #00796b;
   border-radius: 6px;
   color: #00796b;
@@ -170,7 +138,7 @@ export default defineComponent({
 .logout-button {
   width: 100%;
   padding: 12px;
-  background-color: #dc3545; /* Red color for logout */
+  background-color: #dc3545;
   color: white;
   border: none;
   border-radius: 6px;
